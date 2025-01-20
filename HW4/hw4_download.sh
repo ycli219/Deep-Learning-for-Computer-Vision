@@ -1,0 +1,2 @@
+gdown 1f5icXMRJeBBlfmzBSvaTFbanamU2WQgv
+unzip model.zip
