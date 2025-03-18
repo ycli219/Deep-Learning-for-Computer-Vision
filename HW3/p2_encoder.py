@@ -11,7 +11,7 @@ class ImageCaptioningEncoder(nn.Module):
         self.vision_encoder = timm.create_model(
             vision_model_name,
             pretrained=True,
-            num_classes=0  # 移除分類頭
+            num_classes=0
         )
         
         # Freeze vision encoder

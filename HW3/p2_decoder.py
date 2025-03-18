@@ -10,7 +10,7 @@ class ModifiedDecoder(nn.Module):
         super().__init__()
         self.cfg = cfg
 
-        # Projection layer (移自 encoder)
+        # Projection layer
         vit_hidden_size = 1024  # ViT-Large 的輸出維度
         self.projection = nn.Sequential(
             nn.Linear(vit_hidden_size, cfg.n_embd),

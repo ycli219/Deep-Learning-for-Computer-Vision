@@ -18,14 +18,11 @@ class ImageCaptionDataset(Dataset):
         self.tokenizer = tokenizer
         self.max_length = max_length
         
-        # 載入資料
         with open(caption_file, 'r') as f:
             data = json.load(f)
         
-        # 建立圖片ID到檔名的映射
         self.id_to_filename = {img['id']: img['file_name'] for img in data['images']}
         
-        # 整理資料
         self.samples = []
         for ann in data['annotations']:
             image_id = ann['image_id']
@@ -38,10 +35,9 @@ class ImageCaptionDataset(Dataset):
             })
         
         model = timm.create_model('vit_large_patch14_clip_224.openai_ft_in1k', pretrained=True, num_classes=0)
-        model = model.eval() # ccc ?
+        model = model.eval()
         data_config = timm.data.resolve_model_data_config(model)
         
-        # 創建 transform
         if modee == 'train':
             transform_list = [
                 transforms.TrivialAugmentWide(),
@@ -89,7 +85,6 @@ def train_epoch(encoder, decoder, dataloader, optimizer, device, epoch, schedule
     decoder.train()
     total_loss = 0
     
-    # 使用 tqdm 包裝 dataloader
     progress_bar = tqdm(dataloader, desc=f'Epoch {epoch}')
     
     for batch_idx, (images, input_ids, label_ids) in enumerate(progress_bar):
@@ -102,10 +97,6 @@ def train_epoch(encoder, decoder, dataloader, optimizer, device, epoch, schedule
         visual_features = encoder(images)
         logits = decoder(visual_features, input_ids)
 
-        #print(f"logits shape: {logits.shape}")
-        #print(f"label_ids shape: {label_ids.shape}")
-
-        # 修改這裡：先確保張量是連續的，再進行 view 操作
         logits = logits.contiguous()
         label_ids = label_ids.contiguous()
         
@@ -117,11 +108,10 @@ def train_epoch(encoder, decoder, dataloader, optimizer, device, epoch, schedule
         loss.backward()
         optimizer.step()
 
-        scheduler.step() # ccc
+        scheduler.step()
         
         total_loss += loss.item()
         
-        # 更新進度條
         progress_bar.set_postfix(loss=f'{loss.item():.4f}')
     
     return total_loss / len(dataloader)
@@ -147,7 +137,6 @@ def validate(encoder, decoder, dataloader, device):
     total_loss = 0
 
     with torch.no_grad():
-        # Using tqdm to wrap the dataloader for a progress bar
         for images, input_ids, label_ids in tqdm(dataloader, desc='Validation'):
             images = images.to(device)
             input_ids = input_ids.to(device)
@@ -156,11 +145,9 @@ def validate(encoder, decoder, dataloader, device):
             visual_features = encoder(images)
             logits = decoder(visual_features, input_ids)
 
-            # Ensure tensors are contiguous before reshaping
             logits = logits.contiguous()
             label_ids = label_ids.contiguous()
 
-            # Compute loss
             loss = nn.CrossEntropyLoss(ignore_index=-100, label_smoothing = 0.1)(
                 logits.view(-1, logits.size(-1)),
                 label_ids.view(-1)
@@ -172,7 +159,6 @@ def validate(encoder, decoder, dataloader, device):
     return avg_loss
 
 def main():
-    # 設定
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     batch_size = 16
     num_epochs = 10
@@ -190,7 +176,6 @@ def main():
         vocab_file='vocab.bpe'
     )
     
-    # 創建數據集
     train_dataset = ImageCaptionDataset(
         image_dir='./hw3_data/p2_data/images/train',
         caption_file='./hw3_data/p2_data/train.json',
@@ -223,7 +208,6 @@ def main():
         pin_memory=True
     )
     
-    # 初始化模型
     encoder = ImageCaptioningEncoder().to(device)
     decoder_cfg = Config(checkpoint='./hw3_data/p2_data/decoder_model.bin')
     decoder = ModifiedDecoder(decoder_cfg, lora_rank=lora_rank).to(device)
@@ -260,7 +244,6 @@ def main():
 
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr = 1e-3, epochs = num_epochs, steps_per_epoch = len(train_loader))
     
-    # 訓練循環
     best_loss = float('inf')
     
     for epoch in tqdm(range(num_epochs), desc='Training Progress'):
@@ -271,7 +254,6 @@ def main():
         val_loss = validate(encoder, decoder, val_loader, device)
         print(f'Validation loss: {val_loss:.4f}')
         
-        # 儲存最佳模型
         if val_loss < best_loss:
             best_loss = val_loss
             save_trained_parameters(
@@ -279,7 +261,6 @@ def main():
                 './sq10/best_model.pth'
             )
         
-        # 定期儲存檢查點
         if (epoch + 1) % 1 == 0:
             save_trained_parameters(
                 decoder,
